@@ -1,68 +1,41 @@
 # Architecture Overview
 
-## 1. Scope
+## Scenario
 
-The solution covers:
+This portfolio case study describes a digital-banking platform on AWS around an existing Core Banking System. The Core remains the financial system of record; the AWS layer provides digital channels, identity, orchestration, integration, notifications, audit, observability and resilience.
 
-- Customer, product and account information queries.
-- Movement history.
-- Own-account and interbank transfers.
-- Digital onboarding with facial identity verification/KYC.
-- OAuth 2.0 / OIDC authentication for SPA and mobile channels.
-- At least two notification mechanisms.
-- Business audit and immutable evidence retention.
-- Integration with the Core Banking System and a complementary customer-information system.
-- High availability, disaster recovery, security, monitoring and observability.
+## C4 structure
 
-## 2. Architectural principles
+### Level 1 — System Context
 
-1. **Core as source of truth** — financial authorization is not made from cache data alone.
-2. **Zero Trust / least privilege** — strong authentication, scope/role-based authorization and private workloads.
-3. **Decoupling** — events and queues isolate notification, audit and other asynchronous effects.
-4. **Idempotency** — monetary operations use a unique business reference and idempotency key.
-5. **Fail-safe integration** — timeouts, circuit breakers, backoff and DLQ are used selectively; uncertain financial effects are reconciled rather than blindly retried.
-6. **Observability by design** — correlation IDs, traces, metrics and audit events are part of the first release.
-7. **Privacy by design** — data minimization, explicit retention, encryption and separation of duties.
-8. **Infrastructure as Code** — reproducible and auditable environments.
+The platform connects customers and operations/compliance teams with the Core Banking System, a complementary customer-information system, an interbank service, KYC/AML capabilities and notification providers.
 
-## 3. C4 Level 1 — System Context
+![C4 System Context](../assets/diagrams/01-c4-system-context.png)
 
-![System Context](../assets/diagrams/01-c4-system-context.png)
+### Level 2 — Containers
 
-The digital-banking platform sits between the customer channels and authoritative banking systems. Operations, compliance and SOC teams observe and audit the environment. External dependencies include Core Banking, customer-detail services, interbank rails, KYC/AML providers and notification channels.
+The solution uses React/TypeScript for the SPA, React Native for mobile, Amazon Cognito for identity, Amazon API Gateway as the API façade, ECS Fargate for domain services, EventBridge + SQS/DLQ for asynchronous integration, ElastiCache/Valkey for non-authoritative reads, DynamoDB and S3 Object Lock for audit/evidence, Step Functions Standard for transfer orchestration and Direct Connect + VPN for private Core connectivity.
 
-## 4. C4 Level 2 — Containers
+![C4 Containers](../assets/diagrams/02-c4-containers-aws.png)
 
-![Containers](../assets/diagrams/02-c4-containers-aws.png)
+### Level 3 — Transfers
 
-The main containers and services are:
+The transfer domain separates API validation, authorization/step-up, idempotency, orchestration, Core and interbank adapters, and event publication. A timeout with an uncertain monetary outcome enters reconciliation rather than blind retry.
 
-- React/TypeScript SPA on S3 + CloudFront.
-- React Native mobile application.
-- Amazon Cognito for customer identity.
-- Amazon API Gateway as API façade.
-- ECS Fargate services for Profile, Movements, Transfers, Onboarding, Integration, Notification and Audit.
-- EventBridge + SQS/DLQ for asynchronous integration.
-- ElastiCache Serverless / Valkey for Cache-Aside.
-- DynamoDB and S3 Object Lock for operational audit/idempotency and immutable evidence.
-- Step Functions Standard for transfer workflows.
-- Amazon Rekognition for Face Liveness / face comparison.
-- Direct Connect + VPN for private integration with existing banking systems.
+![Transfer Service Components](../assets/diagrams/03-transfer-service-components.png)
 
-## 5. C4 Level 3 — Transfer components
+### Level 3 — Onboarding / KYC
 
-![Transfer Components](../assets/diagrams/03-transfer-service-components.png)
+The onboarding domain separates consent/privacy, KYC orchestration, Amazon Rekognition Face Liveness / face comparison, optional external document/AML validation, Core provisioning, Cognito provisioning and passkey enrollment.
 
-The Transfer domain separates API validation, authorization/step-up, idempotency, orchestration, Core/interbank integration, result mapping and event publication. The design explicitly avoids repeating an uncertain debit after a timeout until reconciliation determines the actual state.
+![Onboarding / KYC Components](../assets/diagrams/04-onboarding-kyc-components.png)
 
-## 6. C4 Level 3 — Onboarding/KYC components
+## Deployment, availability and DR
 
-![Onboarding/KYC Components](../assets/diagrams/04-onboarding-kyc-components.png)
-
-The onboarding flow separates privacy/consent, KYC orchestration, liveness, facial comparison, optional AML/document validation, Core provisioning, Cognito provisioning and passkey enrollment.
-
-## 7. Deployment and DR
+The primary AWS environment spans multiple Availability Zones. Microservices run privately behind an internal ALB and API Gateway/VPC Link. Hybrid connectivity uses redundant Direct Connect where justified, with Site-to-Site VPN as backup. The exercise proposes a Warm Standby secondary Region and controlled failover through Route 53.
 
 ![AWS Infrastructure and DR](../assets/diagrams/05-aws-infrastructure-dr.png)
 
-The primary Region uses three AZs for critical workloads. Microservices remain private behind API Gateway, VPC Link and an internal ALB. Direct Connect and VPN provide hybrid connectivity. The DR design is Warm Standby in a second Region with selected replication for identity, DynamoDB and S3 evidence.
+## Core architecture principle
+
+The AWS digital layer improves experience and resilience without replacing the authoritative banking ledger. Financial authorization remains tied to the Core, while cache, events and read models are used only where their consistency characteristics are acceptable.
