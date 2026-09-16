@@ -67,21 +67,67 @@ The solution uses a moderate service decomposition rather than creating dozens o
 
 ```mermaid
 flowchart TB
-  WEB[React + TypeScript SPA] --> EDGE[Route 53 + CloudFront + WAF + Shield + ACM]
-  MOB[React Native Mobile App] --> APIGW[API Gateway Regional]
-  EDGE --> APIGW
-  APIGW --> VPCL[VPC Link V2]
-  VPCL --> ALB[Internal ALB]
-  ALB --> SVC[ECS Fargate Services<br/>Profile | Movements | Transfers | Onboarding | Integration | Notification | Audit]
-  SVC --> CACHE[ElastiCache Serverless / Valkey]
-  SVC --> SFN[Step Functions Standard]
-  SVC --> EVENT[EventBridge + SQS / DLQ]
-  SVC --> DDB[DynamoDB]
-  SVC --> S3[S3 Object Lock]
-  SVC --> COG[Amazon Cognito]
-  SVC --> REK[Amazon Rekognition]
-  SVC --> HYB[Direct Connect + VPN]
-  HYB --> CORE2[Core / Internal Systems]
+  USER["Customer"]
+  EDGE["CloudFront + WAF + Shield + ACM"]
+  WEB["React + TypeScript SPA"]
+  MOB["React Native Mobile App"]
+  COG["Amazon Cognito<br/>OIDC / OAuth 2.0 + PKCE"]
+  APIGW["API Gateway Regional"]
+  VPCL["VPC Link V2"]
+  ALB["Internal ALB"]
+
+  PROFILE["Profile Service<br/>ECS Fargate"]
+  MOVE["Movements Service<br/>ECS Fargate"]
+  TRANS["Transfer Service<br/>ECS Fargate"]
+  ONB["Onboarding / KYC Service<br/>ECS Fargate"]
+  INT["Integration Adapters<br/>ECS Fargate"]
+  NOTIF["Notification Service<br/>ECS Fargate"]
+  AUDIT["Audit Service<br/>ECS Fargate"]
+
+  CACHE["ElastiCache Serverless / Valkey"]
+  SFN["Step Functions Standard"]
+  EVENT["EventBridge + SQS / DLQ"]
+  DDB["DynamoDB"]
+  S3["S3 Object Lock"]
+  REK["Amazon Rekognition"]
+  HYB["Direct Connect + Site-to-Site VPN"]
+  CORE2["Core Banking / Internal Systems"]
+
+  USER --> EDGE
+  EDGE --> WEB
+  USER --> MOB
+
+  WEB --> COG
+  MOB --> COG
+  WEB --> APIGW
+  MOB --> APIGW
+
+  APIGW --> VPCL
+  VPCL --> ALB
+  ALB --> PROFILE
+  ALB --> MOVE
+  ALB --> TRANS
+  ALB --> ONB
+
+  PROFILE --> CACHE
+  MOVE --> CACHE
+  TRANS --> SFN
+  TRANS --> DDB
+  TRANS --> EVENT
+  ONB --> REK
+  ONB --> COG
+
+  EVENT --> NOTIF
+  EVENT --> AUDIT
+  AUDIT --> DDB
+  AUDIT --> S3
+
+  PROFILE --> INT
+  MOVE --> INT
+  TRANS --> INT
+  ONB --> INT
+  INT --> HYB
+  HYB --> CORE2
 ```
 
 ### Main technology choices
