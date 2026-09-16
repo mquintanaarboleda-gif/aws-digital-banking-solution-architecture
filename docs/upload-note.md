@@ -1,1 +1,0 @@
-Portfolio binary assets are being attached in the final commit.
