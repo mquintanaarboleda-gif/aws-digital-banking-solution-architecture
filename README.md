@@ -12,6 +12,7 @@ The design focuses on five architecture problems that materially affect a bankin
 
 | Resource | What it shows |
 |---|---|
+| **[Original Anonymized Architecture Report (PDF)](docs/Reto_Banco_Digital_Arquitectura_AWS_Milton_Quintana.pdf)** | Complete architecture report in its original formatted version |
 | **[Architecture Overview](docs/architecture-overview.md)** | Business context, C4 structure, services and critical flows |
 | **[Architecture Decisions](docs/architecture-decisions.md)** | Key technical decisions, rationale and trade-offs |
 | **[Requirements Traceability](docs/requirements-traceability.md)** | Challenge requirement → proposed AWS solution → status |
