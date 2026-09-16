@@ -17,7 +17,7 @@ The design focuses on five architecture problems that materially affect a bankin
 | **[Architecture Decisions](docs/architecture-decisions.md)** | Key technical decisions, rationale and trade-offs |
 | **[Requirements Traceability](docs/requirements-traceability.md)** | Challenge requirement → proposed AWS solution → status |
 | **[Open Risks & Production Preconditions](docs/open-risks.md)** | Assumptions and decisions that require evidence before production |
-| **[Diagram Index](docs/diagram-index.md)** | Five architecture diagrams extracted from the original report |
+| **[Diagram Index](docs/diagram-index.md)** | Five architecture views represented in Mermaid |
 | **[Disclaimer](DISCLAIMER.md)** | Portfolio / non-production scope |
 
 ---
@@ -48,7 +48,16 @@ The digital platform supports customer and account queries, movement history, tr
 
 The architecture deliberately avoids moving financial authorization into cache or satellite services. Balances, limits and final monetary effects remain dependent on the authoritative banking systems.
 
-![C4 System Context](assets/diagrams/01-c4-system-context.png)
+```mermaid
+flowchart LR
+  C[Customer<br/>Web / Mobile] --> DB[Digital Banking Platform<br/>AWS]
+  OPS[Operations / Compliance / SOC] --> DB
+  DB --> CORE[Core Banking<br/>Financial System of Record]
+  DB --> DETAIL[Complementary Customer System]
+  DB --> RAIL[Interbank Service]
+  DB --> KYC[KYC / AML Provider]
+  DB --> NOTIF[SMS / Push / Email]
+```
 
 ---
 
@@ -56,7 +65,24 @@ The architecture deliberately avoids moving financial authorization into cache o
 
 The solution uses a moderate service decomposition rather than creating dozens of microservices without a clear reason. The main domains are Profile, Movements, Transfers, Onboarding/KYC, Integration Adapters, Notification and Audit.
 
-![C4 Containers](assets/diagrams/02-c4-containers-aws.png)
+```mermaid
+flowchart TB
+  WEB[React + TypeScript SPA] --> EDGE[Route 53 + CloudFront + WAF + Shield + ACM]
+  MOB[React Native Mobile App] --> APIGW[API Gateway Regional]
+  EDGE --> APIGW
+  APIGW --> VPCL[VPC Link V2]
+  VPCL --> ALB[Internal ALB]
+  ALB --> SVC[ECS Fargate Services<br/>Profile | Movements | Transfers | Onboarding | Integration | Notification | Audit]
+  SVC --> CACHE[ElastiCache Serverless / Valkey]
+  SVC --> SFN[Step Functions Standard]
+  SVC --> EVENT[EventBridge + SQS / DLQ]
+  SVC --> DDB[DynamoDB]
+  SVC --> S3[S3 Object Lock]
+  SVC --> COG[Amazon Cognito]
+  SVC --> REK[Amazon Rekognition]
+  SVC --> HYB[Direct Connect + VPN]
+  HYB --> CORE2[Core / Internal Systems]
+```
 
 ### Main technology choices
 
@@ -85,7 +111,17 @@ The main transfer risk is not service availability by itself; it is **duplicatin
 
 The design therefore uses a unique business reference, an idempotency key, a DynamoDB conditional-write guard and explicit reconciliation before repeating an uncertain monetary instruction.
 
-![Transfer Service Components](assets/diagrams/03-transfer-service-components.png)
+```mermaid
+flowchart LR
+  API[Transfer API] --> AUTH[Authorization / Step-up]
+  AUTH --> IDEM[Idempotency Guard<br/>DynamoDB conditional write]
+  IDEM --> ORCH[Transfer Orchestrator<br/>Step Functions Standard]
+  ORCH --> CORE[Core Banking Adapter]
+  ORCH --> BANK[Interbank Adapter]
+  ORCH --> EVENT[Event Publisher]
+  EVENT --> AUDIT[Audit Event]
+  EVENT --> NOTIF[Notification Event]
+```
 
 The flow separates validation, authorization/step-up, idempotency, orchestration, Core/interbank adapters and transactional event publication. Audit and notification are downstream effects and do not determine the success of the monetary operation.
 
@@ -97,7 +133,17 @@ The design separates **remote identity verification** from **subsequent login au
 
 For onboarding, a KYC Orchestrator coordinates consent/privacy, Face Liveness, face comparison, optional document/AML validation, Core provisioning and Cognito provisioning. For later authentication, the preferred mechanism is a passkey/WebAuthn credential protected by local device biometrics rather than uploading device biometric templates to the cloud.
 
-![Onboarding and KYC Components](assets/diagrams/04-onboarding-kyc-components.png)
+```mermaid
+flowchart LR
+  APP[Mobile Onboarding API] --> CONSENT[Consent & Privacy]
+  CONSENT --> KYC[KYC Orchestrator]
+  KYC --> LIVE[Face Liveness<br/>Amazon Rekognition]
+  KYC --> MATCH[Face Match<br/>CompareFaces]
+  KYC --> DOC[Document / AML Provider Adapter]
+  KYC --> CORE[Customer Provisioning Adapter]
+  KYC --> COG[Cognito Provisioning]
+  COG --> PASS[Passkey Enrollment<br/>WebAuthn]
+```
 
 ---
 
@@ -107,7 +153,24 @@ The primary environment spans three Availability Zones with private Fargate work
 
 The DR strategy is **Warm Standby**, with reduced capacity in a second Region and replication mechanisms for identity, DynamoDB and S3 evidence where applicable.
 
-![AWS Infrastructure and DR](assets/diagrams/05-aws-infrastructure-dr.png)
+```mermaid
+flowchart TB
+  USERS[Internet / Customers] --> EDGE[Route 53 + CloudFront + WAF]
+  EDGE --> API[API Gateway Regional]
+  subgraph PRIMARY[Primary AWS Region - 3 AZ]
+    API --> ALB[Internal ALB]
+    ALB --> F1[ECS Fargate - AZ A]
+    ALB --> F2[ECS Fargate - AZ B]
+    ALB --> F3[ECS Fargate - AZ C]
+    F1 --> DATA[DynamoDB / EventBridge / SQS / ElastiCache]
+    F2 --> DATA
+    F3 --> DATA
+  end
+  PRIMARY --> HYB[Transit / Direct Connect + VPN]
+  HYB --> CORE[Bank Data Center / Core]
+  PRIMARY -. replication .-> DR[Secondary AWS Region<br/>Warm Standby]
+  EDGE -. controlled failover .-> DR
+```
 
 The proposed RTO/RPO values in the exercise are design hypotheses. Final targets must be approved through business impact analysis and tested through failover/failback exercises.
 
