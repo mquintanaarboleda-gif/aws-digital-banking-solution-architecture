@@ -11,9 +11,3 @@ The portfolio exposes five architecture views directly in the repository README 
 | 5 | AWS Infrastructure, Hybrid Connectivity and DR | Shows Multi-AZ Fargate deployment, private Core connectivity and multi-region Warm Standby |
 
 [Open the visual architecture in the README](../README.md#business-context)
-
-## Original report
-
-The anonymized Word report contains the original diagram images and full 15-page technical proposal:
-
-[Open the anonymized Word report](Banco_Digital_Arquitectura_AWS_Milton_Quintana.docx)
